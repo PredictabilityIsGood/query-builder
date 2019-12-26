@@ -10,15 +10,21 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.7/css/select2.min.css" rel="stylesheet"/>
     <link rel="stylesheet" href="dist/qb.css">
 
-    <title>QueryBuilder</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css"/>
+    
+    <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+
+    <title>Lambda Query Builder</title>
   </head>
-  <body onload="qb.set('query-builder')">
+  <body >
     <div class="container text-center mt-4">
-      <h1 class="display-4">Query Builder</h1>
-      <p>This is a test page for the Query Builder</p>
+      <h1 class="display-4">Lambda Query Builder</h1>
+      <p>This is a test page for the Lambda Query Builder</p>
     </div>
     
     <div id="query-builder"></div>
+
+    <div id="query-builder-saved"></div>
 
     <!-- Optional JavaScript -->
     <!-- jQuery first, then Popper.js, then Bootstrap JS -->
@@ -29,5 +35,18 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.7/js/select2.min.js"></script>
     <script src="https://webapps3.liu.edu/BITools/client/v1.0.0/Assets/Libraries/typeahead/typeahead.bundle.min.js"></script>
     <script src="dist/qb.js"></script>
+    <script>
+
+      function renderCallback(result){
+        console.log(result);
+      }
+      $(()=>{
+        qb = new QueryBuilder();
+        qb.set({
+
+          callback:renderCallback
+        })
+      })
+    </script>
   </body>
 </html	>

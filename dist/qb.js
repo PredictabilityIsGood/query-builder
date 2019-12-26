@@ -1,13 +1,19 @@
-function QueryBuilder(){
+function QueryBuilder(options={}){
+  options=Object.assign({domSelector:"#query-builder",filters:null,joins:null,dLanguage:"JavaScript",callback:(item)=>console.log(item)},options);
   this.surrogate=1;
   this.rendered="";
   this.filters=[];
   this.joins=[];
   this.selected=[];
-  this.domid;
+  this.domselector;
   this.domrender;
   this.dommode;
   this.domfilters;
+  this.domlisteners=[];
+  this.addEventListener=function(el,action,fn){
+    el.addEventListener(action,fn);
+    this.domlisteners.push({dom:el,fn:fn,action:action});
+  }
   this.Pluck=function( rootData , bindpath=[] , set=null ){
     if(bindpath.length>1){
         return this.Pluck( rootData[bindpath[0]] , bindpath.slice(1,bindpath.length) , set );
@@ -49,8 +55,8 @@ function QueryBuilder(){
   }
   this.joinMode="OR";
   this.lookupStorage={ 
-	crmprefix:"https://webapps3.liu.edu/newcrm/api/",
-	BIToolPrefix:"https://webapps3.liu.edu/BITools/api/v1.0.0/meta/query/get/",
+    crmprefix:"https://webapps3.liu.edu/newcrm/api/",
+    BIToolPrefix:"https://webapps3.liu.edu/BITools/api/v1.0.0/meta/query/get/",
     campus:"BKLYN",
     term:"1192",
     career:"UGRD"
@@ -89,7 +95,7 @@ function QueryBuilder(){
           "token": "Public"
         },
         "error": function(request,error){
-            console.log(request)
+          console.log(request)
           callback(-1);
         }
       }
@@ -147,22 +153,18 @@ function QueryBuilder(){
   };
   this.keys={
 	  "Campus":{
-        "type":"string",
-      "lookup":"{{{crmprefix}}}/campus"
+      "type":"string",
+		  //"lookup":"{{{crmprefix}}}schedule/{{{campus}}}"
     },
-	 "Campus":{
-        "type":"string",
-		"lookup":"{{{crmprefix}}}schedule/{{{campus}}}"
+    "AdmitTerm":{
+      "type":"string",
+      //"lookup":"https://webapps.liu.edu/newcrm/api/lookup/campus/{{{CAMPUS}}}"
     },
-      "AdmitTerm":{
-        "type":"string",
-      "lookup":"https://webapps.liu.edu/newcrm/api/lookup/campus/{{{CAMPUS}}}"
-    },
-      "AdmitType":{
-        "type":"string"
+    "AdmitType":{
+      "type":"string"
     },
     "Courses":{
-        "type":"number",
+      "type":"string",
       "lookup":"{{{BIToolPrefix}}}Util.Courses?Campus={{{CAMPUS}}}&Term={{{TERM}}}&Career={{{CAREER}}}",
       "path":["Data"],
       "map":{ "key":"class_number" , "value":"class_number" }
@@ -172,77 +174,141 @@ function QueryBuilder(){
     },
 	
   };
-  this.operators={
-      "like":{
-        "type":"single",
-      "value":"{{{KEY}}} LIKE {{{VALUE}}}"
+  this.defaultOperator=options.dLanguage;
+  this.customOperators={
+    "SQL":{
+      "operators":{
+        "like":{
+          "type":"single",
+          "value":"{{{KEY}}} LIKE {{{VALUE}}}"
+        },
+        "=":{
+          "type":"single",
+          "value":"{{{KEY}}}{{{OPERATOR}}}{{{VALUE}}}"
+        },
+        ">":{
+          "type":"single",
+          "value":"{{{KEY}}}{{{OPERATOR}}}{{{VALUE}}}"
+        },
+        ">=":{
+          "type":"single",
+          "value":"{{{KEY}}}{{{OPERATOR}}}{{{VALUE}}}"
+          
+        },
+        "<":{
+          "type":"single",
+          "value":"{{{KEY}}}{{{OPERATOR}}}{{{VALUE}}}"
+        },
+        "<=":{
+          "type":"single",
+          "value":"{{{KEY}}}{{{OPERATOR}}}{{{VALUE}}}"
+        },
+        "in":{
+          "type":"multiple",
+          "value":"{{{KEY}}} IN ({{{VALUE}}})"
+        },
+        "not in":{
+          "type":"multiple",
+          "value":"{{{KEY}}} NOT IN ({{{VALUE}}})"
+        },
+        "virtual":{
+          "type":"custom",
+          "value":"{{{VALUE}}}"
+        }
+      },
+      "join":(item)=>{
+        return item;
+      }
     },
-      "=":{
-        "type":"single",
-      "value":"{{{KEY}}}{{{OPERATOR}}}{{{VALUE}}}"
-    },
-    ">":{
-        "type":"single",
-      "value":"{{{KEY}}}{{{OPERATOR}}}{{{VALUE}}}"
-    },
-    ">=":{
-        "type":"single",
-      "value":"{{{KEY}}}{{{OPERATOR}}}{{{VALUE}}}"
-      
-    },
-    "<":{
-        "type":"single",
-      "value":"{{{KEY}}}{{{OPERATOR}}}{{{VALUE}}}"
-    },
-    "<=":{
-        "type":"single",
-      "value":"{{{KEY}}}{{{OPERATOR}}}{{{VALUE}}}"
-    },
-    "in":{
-        "type":"multiple",
-      "value":"{{{KEY}}} IN ({{{VALUE}}})"
-    },
-    "not in":{
-        "type":"multiple",
-      "value":"{{{KEY}}} NOT IN ({{{VALUE}}})"
-    },
-    "virtual":{
-        "type":"custom",
-      "value":"{{{VALUE}}}"
-    },
+    "JavaScript":{
+      "operators":{
+        "like":{
+          "type":"single",
+          "value":"row[\"{{{KEY}}}\"].indexOf({{{VALUE}}})!=-1"
+        },
+        "=":{
+          "type":"single",
+          "value":"row[\"{{{KEY}}}\"]{{{OPERATOR}}}{{{VALUE}}}"
+        },
+        ">":{
+          "type":"single",
+          "value":"row[\"{{{KEY}}}\"]{{{OPERATOR}}}{{{VALUE}}}"
+        },
+        ">=":{
+          "type":"single",
+          "value":"row[\"{{{KEY}}}\"]{{{OPERATOR}}}{{{VALUE}}}"
+          
+        },
+        "<":{
+          "type":"single",
+          "value":"row[\"{{{KEY}}}\"]{{{OPERATOR}}}{{{VALUE}}}"
+        },
+        "<=":{
+          "type":"single",
+          "value":"row[\"{{{KEY}}}\"]{{{OPERATOR}}}{{{VALUE}}}"
+        },
+        "in":{
+          "type":"multiple",
+          "value":"[{{{VALUE}}}].indexOf(row[\"{{{KEY}}}\"])==0"
+        },
+        "not in":{
+          "type":"multiple",
+          "value":"[{{{VALUE}}}].indexOf(row[\"{{{KEY}}}\"])==-1"
+        },
+        "virtual":{
+          "type":"custom",
+          "value":"{{{VALUE}}}"
+        }
+      },
+      "join":(item)=>{
+        return item=="OR"?"||":"&&";
+      }
+    }
   };
+  this.operators=this.customOperators[this.defaultOperator].operators;
   this.filterTemplate={
     "id":0,
     "dom":null,
     "key":"AdmitTerm",
     "operator":"=",
     "value":""
-  }; 
+  };
   this.joinTemplate={
     "id":0,
     "parent":-1,
     "filters":[],
     "operator":"AND"
-  }  
+  } 
+  this.clear=function(node){
+    const myNode = node;
+    while (myNode.firstChild) {
+      myNode.removeChild(myNode.firstChild);
+    }
+  } 
   this.reset=function(){
     this.filters=[];
     this.joins=[];
     this.set();
   }
-  this.set=function(dom="query-builder",filters=null,joins=null){
-    if(filters!=null && joins !=null){
+  this.set=function(){
+    if(options.filters!=null && options.joins !=null){
       this.filters=filters;
       this.joins=joins;
     }
     else{
         this.addFilter();
     }
-    this.domid=dom;
-    if(document.getElementById(this.domid)){
-      $("#"+ this.domid).empty();
-      $("#"+ this.domid).addClass("")
+    this.domselector=options.domSelector;
+    this.dom=document.querySelector(this.domselector);
+    if(this.dom){
+      this.domlisteners.forEach((listenerwrap)=>{
+        listenerwrap.dom.removeEventListener(listenerwrap.action,listenerwrap.fn);
+      })
+      this.domlisteners=[];
+
+      this.clear(this.dom);
       var render = document.createElement("div");
-      render.setAttribute("class","p-4 bg-dark text-light");
+      render.setAttribute("class","px-4 py-3  bg-dark");
       var builderWrapper = document.createElement("div");
       builderWrapper.setAttribute("class", "p-4 bg-light border");
       
@@ -258,8 +324,8 @@ function QueryBuilder(){
       this.dommode=mode;
       this.domfilters=filters;
 
-      document.getElementById(dom).appendChild(render);
-      document.getElementById(dom).appendChild(builderWrapper);
+      this.dom.appendChild(render);
+      this.dom.appendChild(builderWrapper);
       this.render();
     }
   };
@@ -472,11 +538,12 @@ function QueryBuilder(){
     filterLabel.setAttribute("class","input-group-prepend");
     filterLabel.setAttribute("style","cursor:pointer;");
     filterLabel.innerHTML="<span class='input-group-text'>filter</span>";
-    $(filterLabel).on("click",function(){
-        if(qbRef.selected.length==0){
-          //apply style
-          qbRef.selected.push(aFilter);
-        $(filterLabel).addClass("border-success filter-selected");
+    
+    let filterSelect=function(){
+      if(qbRef.selected.length==0){
+        //apply style
+        qbRef.selected.push(aFilter);
+        filterLabel.classList.add("border-success","filter-selected");
       }
       else{
           //check if filter already exists
@@ -485,7 +552,7 @@ function QueryBuilder(){
             //doesn't exist check topNest Similarity to 0th
           if(aFilter.top.id == qbRef.selected[0].top.id){
             qbRef.selected.push(aFilter);
-            $(filterLabel).addClass("border-success filter-selected");
+            filterLabel.classList.add("border-success","filter-selected");
           }
           else{
               alert("Item not in same nest");
@@ -495,10 +562,11 @@ function QueryBuilder(){
         else{
             //exists remove
           qbRef.selected.splice(selectIndex,1);
-          $(filterLabel).removeClass("border-success filter-selected");
+          filterLabel.classList.remove("border-success","filter-selected");
         }
       }
-    })
+    };
+    this.addEventListener(filterLabel,"click",filterSelect)
     
     var filterKey = document.createElement("select");
     filterKey.setAttribute("class","form-control");
@@ -521,85 +589,89 @@ function QueryBuilder(){
     filterDelete.appendChild(document.createTextNode("-"));
     
     function ResetValue(op,key,qbRef){
-        $(filterValue).empty();
-        if(op.type=="single"){
-          //input
+      qbRef.clear(filterValue)
+      if(op.type=="single"){
+        //input
         let input = document.createElement("input");
         input.setAttribute("type","textbox");
         input.setAttribute("style","width:100%;min-width:100%;");
         filterValue.appendChild(input); 
         qbRef.lookupValues(aFilter.key,(values)=>{
-            if(values!=-1){
+          if(values!=-1){
             var typeahead = $(input).typeahead({
-                minLength: 0,
-                highlight: true,
-                hint:true/*,
-                classNames:{
-                    menu: 'BITool-TypeAhead-Only'
-                }*/
+              minLength: 0,
+              highlight: true,
+              hint:true
             },
             {
-                name: 'Options',
-                templates:{
-                    header:"<h5 style='font-size:.8em;border-bottom:1px dotted silver;padding-bottom:.5rem;'>"+aFilter.key+" Available</h5>"
-                },
-                limit:10,
-                source: qbRef.substringMatcher(values.map((x) => { return x["value"]} ))
+              name: 'Options',
+              templates:{
+                  header:"<h5 class='tt-menu-title'>"+aFilter.key+" Available</h5>"
+              },
+              limit:10,
+              source: qbRef.substringMatcher(values.map((x) => { return x["value"]} ))
             });
-            $(input).on("change",()=>{ aFilter.value = $(input).typeahead("val"); qbRef.renderText(); });
+            let updateTypeAhead=()=>{ aFilter.value = $(input).typeahead("val"); qbRef.renderText(); }
+            qbRef.addEventListener(input,"change",updateTypeAhead);
             $(input).typeahead("val",aFilter.value);
-            $(input).trigger("change");
+            input.dispatchEvent(new Event("change"))
           }
           else{
-              $(input).on("change",()=>{ aFilter.value = $(input).val(); qbRef.renderText(); });
-            $(input).val(aFilter.value);
-            $(input).trigger("change");
+            let updateVal = ()=>{ aFilter.value = $(input).val(); qbRef.renderText(); }
+            qbRef.addEventListener(input,"change",updateVal);
+            input.value=aFilter.value;
+            input.dispatchEvent(new Event("change"))
           }
-         
         })
         qbRef.renderText();
-        
       }
       else if(op.type=="multiple"){
-          //select
+        //select
         let select = document.createElement("select");
         select.setAttribute("style","min-width:200px;width:100%;max-height:30px;")
         select.setAttribute("multiple","multiple");
-        
         filterValue.appendChild(select);
         qbRef.lookupValues(aFilter.key,(values)=>{
-            if(values != -1){
+          if(values != -1){
             var options=values; 
+            let selected = aFilter.value.length>2 ? aFilter.value.slice(1,aFilter.value.length-1).split("','") :[];
+            let choices = [];
             //Generate Options
             options.forEach((row)=>{
               let optionDom = document.createElement("option");
               optionDom.innerHTML=row["key"];
               optionDom.setAttribute("value",row["value"]);
               select.appendChild(optionDom);
-            })
-
-            $(select).select2();
-            $(select).on("select2:select",(e)=>{ 
-                var totalData= $(select).select2('data');
-              aFilter.value = "'" +totalData.map(x => x.id.replace("'","''")).join("','") +"'";
-                    qbRef.renderText()
-            })
+              let active=selected.indexOf(JSON.stringify(row["value"]))>=0;
+              choices.push({value:JSON.stringify(row["value"]),label:JSON.stringify(row["key"]),selected:active})
+            });
+            const choice = new Choices(select,{
+                searchEnabled:true,
+                removeItemButton:true,
+                noResultsText: 'No results',
+                maxItemCount:-1,
+                choices:choices
+            });
             
-            $(select).val(aFilter.value.slice(1,aFilter.value.length-1).split("','").map(x=> x.replace("''","'")));
-            $(select).trigger("change");
+            let mapSelections = (e)=>{ 
+              aFilter.value= choice.getValue().map((row)=>{return "'"+row["value"]+"'"}).join(",");
+              qbRef.renderText();
+            };
+            qbRef.addEventListener(select,"change",mapSelections)
+            select.dispatchEvent(new Event("change"))
           }
           else{
-            $(filterValue).empty();
+            qbRef.clear(filterValue)
             let input = document.createElement("input");
             input.setAttribute("type","textbox")
             input.setAttribute("style","width:100%;min-width:100%;")
             filterValue.appendChild(input); 
-            $(input).on("change",()=>{ aFilter.value = $(input).val(); qbRef.renderText(); })
-            $(input).val(aFilter.value);
-            $(input).trigger("change");
+            let updateVal = ()=>{ aFilter.value = $(input).val(); qbRef.renderText(); }
+            qbRef.addEventListener(input,"change",updateVal);
+            input.value=aFilter.value;
+            input.dispatchEvent(new Event("change"))
           }
         })
-        
         qbRef.renderText()
       }
       else{
@@ -608,41 +680,44 @@ function QueryBuilder(){
         input.setAttribute("type","textbox");
         input.setAttribute("style","width:100%;min-width:100%;");
         filterValue.appendChild(input); 
-        $(input).on("change",()=>{ aFilter.value = $(input).val(); qbRef.renderText() })
-        $(input).val(aFilter.value);
-        $(input).trigger("change");
+        let updateVal = ()=>{ aFilter.value = $(input).val(); qbRef.renderText(); }
+        qbRef.addEventListener(input,"change",updateVal);
+        input.value=aFilter.value;
+        input.dispatchEvent(new Event("change"))
       }
     }
     
-    $(filterKey).on("change",function(){
-        aFilter.key=$(this).val();
+    let changeFilterKey=function(){
+      aFilter.key=$(this).val();
       let op = qbRef.operators[aFilter.operator];
       let key = qbRef.keys[aFilter.key];
       ResetValue(op,key,qbRef);
-    })
-    
-    $(filterOperator).on("change",function(){
-        aFilter.operator=$(this).val();
-        let op = qbRef.operators[aFilter.operator];
+    };
+    this.addEventListener(filterKey,"change",changeFilterKey);
+    let changeFilterOperator = function(){
+      aFilter.operator=$(this).val();
+      let op = qbRef.operators[aFilter.operator];
       let key = qbRef.keys[aFilter.key];
       ResetValue(op,key,qbRef);
-    });     
+    };
+    this.addEventListener(filterOperator,"change",changeFilterOperator);  
     
-    $(filterCopy).on("click",function(event){
-        qbRef.addFilter(aFilter);
+    let copyFilter = function(event){
+      qbRef.addFilter(aFilter);
       qbRef.render();
-    });
+    }
+    this.addEventListener(filterCopy,"click",copyFilter);
     
     if(this.findFilterIndex(aFilter.id)>0){
-      $(filterDelete).on("click",function(event){
+      this.addEventListener(filterDelete,"click",function(event){
         qbRef.removeFilter(aFilter);
         qbRef.render();
       });
     }
     else{
         filterDelete.innerHTML="i";
-        $(filterDelete).on("click",function(event){
-        alert("Welcome to the Query Builder");
+        this.addEventListener(filterDelete,"click",function(event){
+        alert("Group filters with AND/OR by selecting filters and selecting apply/remove");
       });
     }
     
@@ -654,7 +729,7 @@ function QueryBuilder(){
     filterWrapper.appendChild(filterCopy);
     filterWrapper.appendChild(filterDelete);
     setTimeout(function(){
-        $(filterOperator).trigger("change");
+        filterOperator.dispatchEvent(new Event("change")); 
     },200)
     
     aFilter.dom = { 
@@ -672,7 +747,7 @@ function QueryBuilder(){
     return filterWrapper;
   };
   this.render=function(){
-      var qb = this.domfilters;
+    var qb = this.domfilters;
     while(qb.firstChild){
         qb.removeChild(qb.firstChild);
     }
@@ -711,8 +786,8 @@ function QueryBuilder(){
        
   };
   this.renderControl=function(){
-      var qbRef = this;
-      var joinModesWrapper = document.createElement("div");
+    var qbRef = this;
+    var joinModesWrapper = document.createElement("div");
     joinModesWrapper.setAttribute("class","btn-group");
     joinModesWrapper.setAttribute("style","margin-left:-.5rem;");
     var and = document.createElement("button");
@@ -728,16 +803,16 @@ function QueryBuilder(){
     joinModesWrapper.appendChild(and);
     joinModesWrapper.appendChild(or);
     
-    $(and).on("click",function(){
-        $(or).removeClass("active");
-      $(and).addClass("active");
-        qbRef.joinMode="AND";
+    this.addEventListener(and,"click",function(){
+      or.classList.remove("active");
+      and.classList.add("active");
+      qbRef.joinMode="AND";
     });
     
-    $(or).on("click",function(){
-        $(and).removeClass("active");
-      $(or).addClass("active");
-        qbRef.joinMode="OR";
+    this.addEventListener(or,"click",function(){
+      and.classList.remove("active");
+      or.classList.add("active");
+      qbRef.joinMode="OR";
     });
     
     var apply = document.createElement("button");
@@ -757,9 +832,8 @@ function QueryBuilder(){
     clear.appendChild(document.createTextNode("Reset"));
     
     
-    $(apply).on("click",function(){
-        if(qbRef.selected.length!=0){
-        
+    this.addEventListener(apply,"click",function(){
+      if(qbRef.selected.length!=0){
         var topJoin = qbRef.topNest(qbRef.selected[0].id);
         if(qbRef.joinMode!=topJoin.operator){
           if(topJoin.filters.length!=qbRef.selected.length){
@@ -773,7 +847,7 @@ function QueryBuilder(){
           }
           else{ 
             if(topJoin.parent == -1){
-              var operator = topJoin.operator  == "AND" ? "OR" :"AND";
+              var operator = topJoin.operator  == "AND" ? "OR" : "AND";
               topJoin.operator = confirm("Would you like to change the base operators to '"+operator+"'?") ? operator : topJoin.operator;
               qbRef.selected=[];
               qbRef.render();
@@ -792,7 +866,7 @@ function QueryBuilder(){
       }
     })
     
-    $(remove).on("click",function(){
+    this.addEventListener(remove,"click",function(){
         if(qbRef.selected.length!=0){
             var topJoin = qbRef.topNest(qbRef.selected[0].id);
         if(topJoin.parent!=-1){
@@ -815,12 +889,12 @@ function QueryBuilder(){
       }
     })
     
-    $(clear).on("click",function(){
+    this.addEventListener(clear,"click",function(){
       qbRef.reset();
     })
     
     var qbm = qbRef.dommode;
-    $(qbm).empty();
+    this.clear(qbm)
     qbm.appendChild(joinModesWrapper);
     qbm.appendChild(apply);
     qbm.appendChild(remove);
@@ -849,7 +923,7 @@ function QueryBuilder(){
   }
   this.renderTextConserver=new this.conserver(null,20);
   this.renderText=function(){
-      var qbRef=this;
+    var qbRef=this;
     this.renderTextConserver.delay(()=>{
       //Traverse from base building group path for each filter
       var sorted=[];
@@ -941,18 +1015,33 @@ function QueryBuilder(){
         if(differenceDepth==0 && sorted[i-1].groupstrsuffix==")"){
           conditional = conditional == "OR" ? "AND" : "OR";
         }
+        conditional = conditional != "" ? qbRef.customOperators[qbRef.defaultOperator].join(conditional) : conditional;
         conditionalConjunction+= suffix + " " + conditional + " " + prefix + sorted[i].groupstrprefix + replaceMeta( sorted[i] , qbRef ) + sorted[i].groupstrsuffix;
       }
       conditionalConjunction+= ")".repeat(lastDepth);
       
-      $(qbRef.domrender).empty();
-      qbRef.domrender.appendChild(document.createTextNode(conditionalConjunction));
+      this.clear(qbRef.domrender)
+      
+      let preformattedWrap = document.createElement("pre");
+      preformattedWrap.setAttribute("class","mb-0")
+      preformattedWrap.setAttribute("style","overflow-x:auto;white-space:pre-wrap;word-wrap: break-word;")
+      let code = document.createElement("code");
+      code.setAttribute("class","text-light")
+      preformattedWrap.appendChild(code);
+      code.appendChild(document.createTextNode(conditionalConjunction))
+      qbRef.domrender.appendChild(preformattedWrap);
       this.rendered=conditionalConjunction
+      options.callback({
+        filters:this.filters,
+        joins:this.joins,
+        keys:this.keys,
+        text:this.rendered
+      })
     })
   };
   this.topNest=function( filterid ){
-      var qbRef=this;
-      var filter = this.findFilter(filterid);
+    var qbRef=this;
+    var filter = this.findFilter(filterid);
     let joins = this.findJoins(filterid);
     let nested = this.sortJoins( joins ); 
     let joinpath = nested.map(row => row.id);
@@ -984,5 +1073,3 @@ function QueryBuilder(){
       };
   };
 }
-
-qb = new QueryBuilder();

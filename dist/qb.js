@@ -341,9 +341,9 @@ function QueryBuilder(options={}){
 
       this.clear(this.dom);
       var render = document.createElement("div");
-      render.setAttribute("class","px-4 py-3 bg-dark" + (this.options.qbview ? "" : " d-none") );
+      render.setAttribute("class","px-3 py-2 bg-dark" + (this.options.qbview ? "" : " d-none") );
       var builderWrapper = document.createElement("div");
-      builderWrapper.setAttribute("class", "px-4 pt-3 pb-2 bg-light border");
+      builderWrapper.setAttribute("class", "qb-override px-3 pt-2 pb-1 bg-light border");
       
       var mode = document.createElement("div");
       mode.setAttribute("class","mb-2");
@@ -554,7 +554,7 @@ function QueryBuilder(options={}){
     
     for(var i=0; i<nestedaffiliations.length; i++){
       let strip = document.createElement("div");
-      strip.setAttribute("class","m-0 mr-2 badge badge-info");
+      strip.setAttribute("class","m-0 mr-1 badge badge-info");
       strip.setAttribute("style","font-weight:300;")
       strip.innerHTML="'" + nestedaffiliations[i].operator + "' - " + nestedaffiliations[i].id;
       element.appendChild(strip);
@@ -617,7 +617,7 @@ function QueryBuilder(options={}){
     filterCopy.appendChild(document.createTextNode("+"));
     filterCopy.setAttribute("style","border-top-right-radius:0;border-bottom-right-radius:0;")
     var filterDelete = document.createElement("button");
-    filterDelete.setAttribute("class","btn btn-sm btn-outline-danger input-group-append mr-2");
+    filterDelete.setAttribute("class","btn btn-sm btn-outline-danger input-group-append");
     filterDelete.setAttribute("style","border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;")
     filterDelete.appendChild(document.createTextNode("-"));
     

@@ -16,7 +16,13 @@
     max-height:31px !important;
 }
 
-.qb-btn {
+.qb-override .btn-sm {
+    line-height:1em !important;
+    font-size:.8em;
 }
-.qb-btn-radio {
+.qb-override .btn-danger {
+    filter: saturate(.8);
+}
+.qb-override .btn-info {
+    filter: saturate(.85);
 }

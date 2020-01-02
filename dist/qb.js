@@ -1,6 +1,20 @@
+let qbsurrogate=0;
 function QueryBuilder(options={}){
-  options=Object.assign({domSelector:"#query-builder",filters:null,joins:null,dLanguage:"JavaScript",callback:(item)=>console.log(item)},options);
-  this.surrogate=1;
+  this.options=Object.assign({
+    domSelector:"#query-builder",
+    filters:null,
+    joins:null,
+    dLanguage:"JavaScript",
+    lookupStorage:{},
+    callback:(item)=>console.log(item),
+    debug:false,
+    keys:{},
+    qbexport:false,
+    qbview:true
+  },options);
+  qbsurrogate+=1;
+  this.id=qbsurrogate;
+  this.surrogate=0;
   this.rendered="";
   this.filters=[];
   this.joins=[];
@@ -54,20 +68,22 @@ function QueryBuilder(options={}){
     }	
   }
   this.joinMode="OR";
-  this.lookupStorage={ 
+  this.lookupStorage= this.options.debug ? { 
     crmprefix:"https://webapps3.liu.edu/newcrm/api/",
     BIToolPrefix:"https://webapps3.liu.edu/BITools/api/v1.0.0/meta/query/get/",
     campus:"BKLYN",
     term:"1192",
     career:"UGRD"
-  };
+  } : this.options.lookupStorage ;
+  this.lookedUp={};
   this.lookupValues=function( key , callback ){
-     var qbRef=this;
+    var qbRef=this;
     var keyname = key;
-      if("options" in qbRef.keys[key]){
-        callback(qbRef.keys[key]["options"]);
+    if("options" in qbRef.keys[key]){
+      callback(qbRef.keys[key]["options"]);
     }
-    else if("lookup" in qbRef.keys[key]){
+    else if("lookup" in qbRef.keys[key] && !(key in qbRef.lookedUp)){
+      qbRef.lookedUp[key] = [];
       function replaceMeta( replace , key , qbRef ){
         var opConditional = replace;
         //replace potential Filter attributes
@@ -83,8 +99,7 @@ function QueryBuilder(options={}){
         }
         return opConditional;
       }
-      var lookupReplaced ;
-        var settings = {
+      var settings = {
         "async": true,
         "crossDomain": true,
         "url": replaceMeta(qbRef.keys[key]["lookup"],key,qbRef),
@@ -99,83 +114,91 @@ function QueryBuilder(options={}){
           callback(-1);
         }
       }
-
-      $.ajax(settings).done(function(response) {
-          var values=response;
+      fetch(settings.url,settings)
+      .then(function(response) {
+        return response.json();
+      })
+      .then(function(data){
+        var values=data;
         var options;
-          let key = qbRef.keys[keyname];
+        let key = qbRef.keys[keyname];
         if("path" in key){
-              if("map" in key){ 
-                  options = qbRef.Pluck(values,key["path"]).map((x) => { return { "key":x[key["map"]["key"]] , "value":x[key["map"]["value"]] } })
-            }
-            else{
-                options = qbRef.Pluck( values, key["path"])
-            }
+          if("map" in key){ 
+            options = qbRef.Pluck(values,key["path"]).map((x) => { return { "key":x[key["map"]["key"]] , "value":x[key["map"]["value"]] } })
+            console.log("a value mapped")
           }
           else{
-              if("map" in key){  
-              options = values.map((x)=>{ return { "key":x[key["map"]["key"]] , "value":x[key["map"]["value"]] } }) 
-            }
-            else{ 
-              options = values;
-            }
+            options = qbRef.Pluck( values, key["path"])
           }
-          
-          if(options.constructor=== Array && options[0].constructor===Object){
-              //complex obj inside of array
-            if("key" in options[0] && "value" in options[0]){
-                //key value inside complex obj
-              
-            }
-            else{
-                //pick first two keys arbitrarily
-              var optionKeys  = Object.keys(options[0]);
-              options = options.map( (x) =>{ return {"key":x[optionKeys[0]],"value":x[optionKeys[1]]} });
-            }
+        }
+        else{
+          if("map" in key){  
+            options = values.map((x)=>{ return { "key":x[key["map"]["key"]] , "value":x[key["map"]["value"]] } }) 
           }
-          else if(options.constructor===Array){
-              //Just take the value as both key and value
-            options = options.map( (x) => { return {"key":x,"value":x} });
+          else{ 
+            options = values;
+          }
+        }
+        if(options.constructor=== Array && options[0].constructor===Object){
+          //complex obj inside of array
+          if("key" in options[0] && "value" in options[0]){
+            //key value inside complex obj
+            
           }
           else{
-              //Improper Format
-            options=-1;
-            console.log("Options for key '"+keyname+"' in invalid format. Must be at minimum array or have a path attribute to the array");
+            //pick first two keys arbitrarily
+            var optionKeys  = Object.keys(options[0]);
+            options = options.map( (x) =>{ return {"key":x[optionKeys[0]],"value":x[optionKeys[1]]} });
           }
-          qbRef.keys[keyname]["options"]=options;//Set cleaned up options for re-use if necessary
-                          callback(qbRef.keys[keyname]["options"]);
-      });
+        }
+        else if(options.constructor===Array){
+            //Just take the value as both key and value
+          options = options.map( (x) => { return {"key":x,"value":x} });
+        }
+        else{
+          //Improper Format
+          options=-1;
+          console.log("Options for key '"+keyname+"' in invalid format. Must be at minimum array or have a path attribute to the array");
+        }
+        qbRef.keys[keyname]["options"]=options;//Set cleaned up options for re-use if necessary
+        callback(qbRef.keys[keyname]["options"]);
+        qbRef.lookedUp[keyname].forEach((chainedCallback)=>{
+          qbRef.lookupValues(keyname,chainedCallback)
+        });
+        qbRef.lookedUp[keyname]=[];
+      })
+      .catch(error=>console.log(error));
+    }
+    else if("lookup" in qbRef.keys[key] && key in qbRef.lookedUp){
+      qbRef.lookedUp[key].push(callback);
     }
     else{
       callback(-1);
     }
-    
   };
-  this.keys={
+  this.debug = this.options.debug;
+  this.keys=this.debug ? {
 	  "Campus":{
-      "type":"string",
-		  //"lookup":"{{{crmprefix}}}schedule/{{{campus}}}"
+      "type":"string"
     },
     "AdmitTerm":{
-      "type":"string",
-      //"lookup":"https://webapps.liu.edu/newcrm/api/lookup/campus/{{{CAMPUS}}}"
+      "type":"string"
     },
     "AdmitType":{
       "type":"string"
     },
     "Courses":{
-      "type":"string",
+      "type":"number",
       "lookup":"{{{BIToolPrefix}}}Util.Courses?Campus={{{CAMPUS}}}&Term={{{TERM}}}&Career={{{CAREER}}}",
       "path":["Data"],
       "map":{ "key":"class_number" , "value":"class_number" }
     },
 	  "Applying Term":{
         "type":"string"
-    },
-	
-  };
-  this.defaultOperator=options.dLanguage;
-  this.customOperators={
+    }
+  } : this.keys;
+  this.defaultLanguage=this.options.dLanguage;
+  this.customLanguages={
     "SQL":{
       "operators":{
         "like":{
@@ -218,6 +241,10 @@ function QueryBuilder(options={}){
       },
       "join":(item)=>{
         return item;
+      },
+      "delimiters":{
+        "string":"'",
+        "number":""
       }
     },
     "JavaScript":{
@@ -262,10 +289,16 @@ function QueryBuilder(options={}){
       },
       "join":(item)=>{
         return item=="OR"?"||":"&&";
+      },
+      "delimiters":{
+        "string":"\"",
+        "number":""
       }
     }
   };
-  this.operators=this.customOperators[this.defaultOperator].operators;
+  this.operators=this.customLanguages[this.defaultLanguage].operators;
+  this.join=this.customLanguages[this.defaultLanguage].join;
+  this.delimiters=this.customLanguages[this.defaultLanguage].delimiters
   this.filterTemplate={
     "id":0,
     "dom":null,
@@ -291,14 +324,14 @@ function QueryBuilder(options={}){
     this.set();
   }
   this.set=function(){
-    if(options.filters!=null && options.joins !=null){
-      this.filters=filters;
-      this.joins=joins;
+    if(this.options.filters!=null && this.options.joins !=null){
+      this.filters=this.options.filters;
+      this.joins=this.options.joins;
     }
     else{
         this.addFilter();
     }
-    this.domselector=options.domSelector;
+    this.domselector=this.options.domSelector;
     this.dom=document.querySelector(this.domselector);
     if(this.dom){
       this.domlisteners.forEach((listenerwrap)=>{
@@ -308,12 +341,12 @@ function QueryBuilder(options={}){
 
       this.clear(this.dom);
       var render = document.createElement("div");
-      render.setAttribute("class","px-4 py-3  bg-dark");
+      render.setAttribute("class","px-4 py-3 bg-dark" + (this.options.qbview ? "" : " d-none") );
       var builderWrapper = document.createElement("div");
-      builderWrapper.setAttribute("class", "p-4 bg-light border");
+      builderWrapper.setAttribute("class", "px-4 pt-3 pb-2 bg-light border");
       
       var mode = document.createElement("div");
-      mode.setAttribute("class","mb-4");
+      mode.setAttribute("class","mb-2");
       var filters = document.createElement("div"); 
       filters.setAttribute("class","");
 
@@ -589,35 +622,34 @@ function QueryBuilder(options={}){
     filterDelete.appendChild(document.createTextNode("-"));
     
     function ResetValue(op,key,qbRef){
+      let delimiter = qbRef.delimiters[qbRef.keys[aFilter.key].type];
       qbRef.clear(filterValue)
       if(op.type=="single"){
         //input
         let input = document.createElement("input");
-        input.setAttribute("type","textbox");
-        input.setAttribute("style","width:100%;min-width:100%;");
-        filterValue.appendChild(input); 
+        let datalistid = "qb-"+qbRef.id+"-datalist-"+aFilter.id;
+        input.setAttribute("list",datalistid)
+        input.setAttribute("type","text");
+        input.setAttribute("style","width:100%;min-width:100%;border-radius:0 !important;");
+        input.setAttribute("class","form-control form-control-sm")
+        filterValue.appendChild(input);
         qbRef.lookupValues(aFilter.key,(values)=>{
           if(values!=-1){
-            var typeahead = $(input).typeahead({
-              minLength: 0,
-              highlight: true,
-              hint:true
-            },
-            {
-              name: 'Options',
-              templates:{
-                  header:"<h5 class='tt-menu-title'>"+aFilter.key+" Available</h5>"
-              },
-              limit:10,
-              source: qbRef.substringMatcher(values.map((x) => { return x["value"]} ))
-            });
-            let updateTypeAhead=()=>{ aFilter.value = $(input).typeahead("val"); qbRef.renderText(); }
+            let autoCompleteList = document.createElement("datalist");
+            autoCompleteList.setAttribute("id",datalistid)
+            values.forEach((row)=>{
+              let option = document.createElement("option");
+              option.setAttribute("value",row["value"]);
+              autoCompleteList.appendChild(option);
+            })
+            filterValue.appendChild(autoCompleteList);
+            let updateTypeAhead=()=>{ aFilter.value = input.value; qbRef.renderText(); }
             qbRef.addEventListener(input,"change",updateTypeAhead);
-            $(input).typeahead("val",aFilter.value);
+            input.value=aFilter.value;
             input.dispatchEvent(new Event("change"))
           }
           else{
-            let updateVal = ()=>{ aFilter.value = $(input).val(); qbRef.renderText(); }
+            let updateVal = ()=>{ aFilter.value = input.value; qbRef.renderText(); }
             qbRef.addEventListener(input,"change",updateVal);
             input.value=aFilter.value;
             input.dispatchEvent(new Event("change"))
@@ -634,31 +666,27 @@ function QueryBuilder(options={}){
         qbRef.lookupValues(aFilter.key,(values)=>{
           if(values != -1){
             var options=values; 
-            let selected = aFilter.value.length>2 ? aFilter.value.slice(1,aFilter.value.length-1).split("','") :[];
-            let choices = [];
+            let selected = aFilter.value.length > (delimiter.length * 2) ? aFilter.value.slice(0+delimiter.length,aFilter.value.length-delimiter.length).split(delimiter+","+delimiter) : [] ;
+            const choices = [];
             //Generate Options
             options.forEach((row)=>{
-              let optionDom = document.createElement("option");
-              optionDom.innerHTML=row["key"];
-              optionDom.setAttribute("value",row["value"]);
-              select.appendChild(optionDom);
-              let active=selected.indexOf(JSON.stringify(row["value"]))>=0;
+              const active=selected.indexOf(JSON.stringify(row["value"]))>=0;
               choices.push({value:JSON.stringify(row["value"]),label:JSON.stringify(row["key"]),selected:active})
             });
             const choice = new Choices(select,{
-                searchEnabled:true,
-                removeItemButton:true,
-                noResultsText: 'No results',
-                maxItemCount:-1,
-                choices:choices
+              shouldSort:true,
+              searchEnabled:true,
+              removeItemButton:true,
+              noResultsText: 'No results',
+              maxItemCount:-1,
+              choices:choices
             });
-            
             let mapSelections = (e)=>{ 
-              aFilter.value= choice.getValue().map((row)=>{return "'"+row["value"]+"'"}).join(",");
+              aFilter.value= choice.getValue().map((row)=>{return delimiter+row["value"]+delimiter}).join(",");
               qbRef.renderText();
             };
             qbRef.addEventListener(select,"change",mapSelections)
-            select.dispatchEvent(new Event("change"))
+            select.dispatchEvent(new Event("change"));
           }
           else{
             qbRef.clear(filterValue)
@@ -666,7 +694,7 @@ function QueryBuilder(options={}){
             input.setAttribute("type","textbox")
             input.setAttribute("style","width:100%;min-width:100%;")
             filterValue.appendChild(input); 
-            let updateVal = ()=>{ aFilter.value = $(input).val(); qbRef.renderText(); }
+            let updateVal = ()=>{ aFilter.value = input.value; qbRef.renderText(); }
             qbRef.addEventListener(input,"change",updateVal);
             input.value=aFilter.value;
             input.dispatchEvent(new Event("change"))
@@ -675,39 +703,36 @@ function QueryBuilder(options={}){
         qbRef.renderText()
       }
       else{
-          //custom
+        //custom
         let input = document.createElement("input");
         input.setAttribute("type","textbox");
         input.setAttribute("style","width:100%;min-width:100%;");
         filterValue.appendChild(input); 
-        let updateVal = ()=>{ aFilter.value = $(input).val(); qbRef.renderText(); }
+        let updateVal = ()=>{ aFilter.value = input.value; qbRef.renderText(); }
         qbRef.addEventListener(input,"change",updateVal);
         input.value=aFilter.value;
         input.dispatchEvent(new Event("change"))
       }
     }
-    
     let changeFilterKey=function(){
-      aFilter.key=$(this).val();
+      aFilter.key=this.value;
       let op = qbRef.operators[aFilter.operator];
       let key = qbRef.keys[aFilter.key];
       ResetValue(op,key,qbRef);
     };
     this.addEventListener(filterKey,"change",changeFilterKey);
     let changeFilterOperator = function(){
-      aFilter.operator=$(this).val();
+      aFilter.operator=this.value;
       let op = qbRef.operators[aFilter.operator];
       let key = qbRef.keys[aFilter.key];
       ResetValue(op,key,qbRef);
     };
     this.addEventListener(filterOperator,"change",changeFilterOperator);  
-    
     let copyFilter = function(event){
       qbRef.addFilter(aFilter);
       qbRef.render();
     }
     this.addEventListener(filterCopy,"click",copyFilter);
-    
     if(this.findFilterIndex(aFilter.id)>0){
       this.addEventListener(filterDelete,"click",function(event){
         qbRef.removeFilter(aFilter);
@@ -799,7 +824,6 @@ function QueryBuilder(options={}){
     or.setAttribute("type","button");
     or.appendChild(document.createTextNode("OR"));
    
-    
     joinModesWrapper.appendChild(and);
     joinModesWrapper.appendChild(or);
     
@@ -824,13 +848,16 @@ function QueryBuilder(options={}){
     remove.setAttribute("class","btn btn-secondary btn-sm m-0 ml-1");
     remove.setAttribute("type","button");
     remove.appendChild(document.createTextNode("Remove"));
-
     
     var clear = document.createElement("button");
     clear.setAttribute("class","btn btn-danger btn-sm m-0 ml-2");
     clear.setAttribute("type","button");
     clear.appendChild(document.createTextNode("Reset"));
-    
+
+    var qbexport = document.createElement("button");
+    qbexport.setAttribute("class","btn btn-info btn-sm m-0 ml-2");
+    qbexport.setAttribute("type","button");
+    qbexport.appendChild(document.createTextNode("Export State"));
     
     this.addEventListener(apply,"click",function(){
       if(qbRef.selected.length!=0){
@@ -853,7 +880,7 @@ function QueryBuilder(options={}){
               qbRef.render();
             }
             else{
-              confirm("filters condition same as ancestors level - applying this operator would do nothing. Remove current level operators?") ? $(remove).trigger("click") : "" ;
+              confirm("filters condition same as ancestors level - applying this operator would do nothing. Remove current level operators?") ? remove.dispatchEvent(new Event("change")) : "" ;
             }
           }
         }
@@ -892,6 +919,14 @@ function QueryBuilder(options={}){
     this.addEventListener(clear,"click",function(){
       qbRef.reset();
     })
+
+    this.addEventListener(qbexport,"click",function(){
+      let state = qbRef.clone(qbRef.options);
+      state.filters = qbRef.filters;
+      state.joins = qbRef.joins;
+      console.log(JSON.stringify(state));
+      alert("Review Console For State");
+    });
     
     var qbm = qbRef.dommode;
     this.clear(qbm)
@@ -899,12 +934,14 @@ function QueryBuilder(options={}){
     qbm.appendChild(apply);
     qbm.appendChild(remove);
     qbm.appendChild(clear);
+    this.options.qbexport ? qbm.appendChild(qbexport) : 0 ;
     
     return { "and":and,"or":or,"apply":apply, "remove":remove };
   };
-  this.conserver=function(todo,delaytime=1000){
+  this.conserver=function(todo,delaytime=1000,callstack=false,callstackkey=""){
     this.todofunc=todo;
     this.compensate=0;
+    this.calledStack={};
     this.delay=function(todo = null){
       this.compensate++;
       var thisObj =this;
@@ -912,15 +949,26 @@ function QueryBuilder(options={}){
         thisObj.compensate--;
         if(thisObj.compensate==0){
           if(todo==null){
-              thisObj.todofunc();
+            thisObj.todofunc();
+            
           }
           else{
-              todo();
+            callstack ? todo(this.complete,callstackkey) : todo();
           }
+        }
+        else if(callstack==true){
+          thisObj.calledStack[callstackkey]=[];
+          thisObj.calledStack[callstackkey].push(todo);
         }
       },delaytime)
     }
-  }
+    this.complete=function(callstackkey){
+      this.calledStack[callstackkey].forEach((func)=>{
+        func();
+      })
+      this.calledStack[callstackkey]=[];
+    }
+  };
   this.renderTextConserver=new this.conserver(null,20);
   this.renderText=function(){
     var qbRef=this;
@@ -978,13 +1026,22 @@ function QueryBuilder(options={}){
         //replace potential Filter attributes
         let filterKeys = Object.keys(aFilter);
         for(var i=0; i<filterKeys.length; i++){
-          var typeReplace="";
-          var typeReplacement="";
+          
+          let delimiter = qbRef.delimiters[qbRef.keys[aFilter["key"]].type];
           let patt = new RegExp("\{\{\{"+filterKeys[i].toUpperCase()+"\}\}\}","gmi")
           if(filterKeys[i]=="value"){
             if(qbRef.keys[aFilter["key"]].type=="number"){
-              typeReplace=new RegExp("\'","gmi");
-              opConditional=opConditional.replace( patt, aFilter[filterKeys[i]].replace(typeReplace,typeReplacement));
+              let typeReplace=new RegExp("[\'\"]","gmi");
+              opConditional=opConditional.replace( patt, aFilter[filterKeys[i]].replace(typeReplace,delimiter));
+            }
+            else if(qbRef.keys[aFilter["key"]].type=="string" && operatorObj.type!="multiple"){
+              try{
+                aFilter[filterKeys[i]]=JSON.parse(aFilter[filterKeys[i]]).constructor.name=="String" ? aFilter[filterKeys[i]] : delimiter + aFilter[filterKeys[i]] + delimiter ;
+              }
+              catch(e){
+                aFilter[filterKeys[i]]=delimiter + aFilter[filterKeys[i]] + delimiter;
+              }
+              opConditional=opConditional.replace( patt, aFilter[filterKeys[i]] );
             }
             else{                	
               opConditional=opConditional.replace( patt, aFilter[filterKeys[i]] );
@@ -1015,7 +1072,7 @@ function QueryBuilder(options={}){
         if(differenceDepth==0 && sorted[i-1].groupstrsuffix==")"){
           conditional = conditional == "OR" ? "AND" : "OR";
         }
-        conditional = conditional != "" ? qbRef.customOperators[qbRef.defaultOperator].join(conditional) : conditional;
+        conditional = conditional != "" ? qbRef.join(conditional) : conditional;
         conditionalConjunction+= suffix + " " + conditional + " " + prefix + sorted[i].groupstrprefix + replaceMeta( sorted[i] , qbRef ) + sorted[i].groupstrsuffix;
       }
       conditionalConjunction+= ")".repeat(lastDepth);
@@ -1031,7 +1088,7 @@ function QueryBuilder(options={}){
       code.appendChild(document.createTextNode(conditionalConjunction))
       qbRef.domrender.appendChild(preformattedWrap);
       this.rendered=conditionalConjunction
-      options.callback({
+      this.options.callback({
         filters:this.filters,
         joins:this.joins,
         keys:this.keys,
@@ -1050,26 +1107,5 @@ function QueryBuilder(options={}){
     filter.joinpathstr=joinpath.join("-");
     var topjoin = nested[nested.length-1];
     return topjoin;
-  };
-  this.substringMatcher=function(strs , popper=null) {
-      return function findMatches(q, cb) {
-          var matches, substringRegex;
-          // an array that will be populated with substring matches
-          matches = [];
-          // regex used to determine if a string contains the substring `q`
-          q=q.replace("*","\\*")
-          substringRegex = new RegExp(q, 'i');
-          // iterate through the pool of strings and for any string that
-          // contains the substring `q`, add it to the `matches` array
-          $.each(strs, function(i, str) {
-              if(substringRegex.test(str)) {
-                  matches.push(str);
-              }
-          });
-          cb(matches);
-          if(popper!=null){
-                              
-          }
-      };
   };
 }

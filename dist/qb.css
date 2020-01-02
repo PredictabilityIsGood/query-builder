@@ -1,45 +1,6 @@
 .filter-selected {
     border-left:3px solid;
 }
-.select2-container{
-    line-height: 18px;
-    border-color:lightgray !important;
-}
-.select2-container--default.select2-container--focus .select2-selection--multiple{
-    border:1px solid lightgray !important;
-}
-.select2-container--default .select2-selection--multiple {
-    border-radius:0 !important;
-}
-.tt-menu {
-    background-color: white;
-    box-shadow: 1px 1px 3px lightgrey;
-}
-.tt-menu-title {
-    color:black;
-    font-size:.8em;
-    border-bottom:1px dotted silver;
-    padding-bottom:.5rem;
-    font-weight:400;
-    margin:.4rem;
-}
-.tt-selectable{
-    padding-left:.25rem;
-    padding-right:.25rem;
-    cursor:pointer;
-}
-.tt-selectable:hover { 
-    background-color:darkgray;
-    color:white;
-}
-.twitter-typeahead {
-    width:100%;
-}
-.twitter-typeahead input {
-    border:1px solid lightgray !important;
-    line-height: 27px;
-    padding-left:.25rem;
-}
 .choices{
     min-width:100%;
 }
@@ -53,4 +14,9 @@
     padding-right:2px !important;
     border-radius:0 !important;
     max-height:31px !important;
+}
+
+.qb-btn {
+}
+.qb-btn-radio {
 }

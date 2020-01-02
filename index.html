@@ -7,46 +7,92 @@
 
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.7/css/select2.min.css" rel="stylesheet"/>
     <link rel="stylesheet" href="dist/qb.css">
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css"/>
-    
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
 
     <title>Lambda Query Builder</title>
   </head>
-  <body >
+  <body onload="load()">
     <div class="container text-center mt-4">
       <h1 class="display-4">Lambda Query Builder</h1>
-      <p>This is a test page for the Lambda Query Builder</p>
+      <h2 class="lead">Author: Ryan Montgomery</h2>
+      <p class="text-muted">This demo shows how to utilize and integrate the query builder by itself and into external projects </p>
+    </div>
+    <div class="card m-2">
+      <div class="card-header">
+        Blank Lambda Query Builder - debug state
+      </div>
+      <div class="card-body p-4">
+        <div id="query-builder"></div>
+      </div>
+    </div>
+
+    <div class="card m-2">
+      <div class="card-header">
+        Saved Lambda Query Editor - Loaded from previous state (By "Export State" button)
+      </div>
+      <div class="card-body p-4">
+        <div id="query-builder-saved"></div>
+      </div>
+    </div>
+
+    <div class="card m-2">
+      <div class="card-header">
+        Blank Integrated Lambda Query Builder - decoupled architecture
+      </div>
+      <div class="card-body p-4">
+        <div id="query-builder-integrated"></div>
+        <div id="app"></div>
+      </div>
     </div>
     
-    <div id="query-builder"></div>
-
-    <div id="query-builder-saved"></div>
-
-    <!-- Optional JavaScript -->
-    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-    <script src="https://code.jquery.com/jquery-3.4.1.min.js" integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.7/js/select2.min.js"></script>
-    <script src="https://webapps3.liu.edu/BITools/client/v1.0.0/Assets/Libraries/typeahead/typeahead.bundle.min.js"></script>
     <script src="dist/qb.js"></script>
     <script>
-
       function renderCallback(result){
-        console.log(result);
+        console.log(result); //your own callback to take the built query
       }
-      $(()=>{
-        qb = new QueryBuilder();
-        qb.set({
+      function integratedCallback(result){
+        //take query - execute on fetched results and return (alternatively, save/run on server)
+        let data = [];
+        return data.filter((row)=>eval(result.text))
+      }
+      var qb;
+      var qbs;
+      var qbi;
 
-          callback:renderCallback
-        })
-      })
+      function load(){
+        qb = new QueryBuilder({
+          callback:renderCallback,
+          debug:true,
+          qbexport:true
+        });
+        qb.set()
+        qbs = new QueryBuilder({
+          "domSelector":"#query-builder-saved",
+          "filters":[{"id":0,"dom":{"wrapper":{},"label":{},"key":{"0":{},"1":{},"2":{},"3":{},"4":{}},
+          "operator":{"0":{},"1":{},"2":{},"3":{},"4":{},"5":{},"6":{},"7":{},"8":{}},"value":{},"copy":{},"delete":{}},
+          "key":"Courses","operator":"in","value":"1505,1506,1519,1521,1526",
+          "top":{"id":1,"parent":-1,"filters":[0],"operator":"AND"}}],
+          "joins":[{"id":1,"parent":-1,"filters":[0],"operator":"AND"}],
+          "dLanguage":"JavaScript",
+          "lookupStorage":{},
+          "debug":true,
+          "keys":{},
+          "qbexport":true,
+          "id":2
+        });
+        qbs.set();
+
+        qbi = new QueryBuilder({
+          domSelector:"#query-builder-integrated",
+          callback:integratedCallback,
+          debug: true,
+          qbexport:false,
+          qbview:false
+        });
+        qbi.set();
+      }
     </script>
   </body>
 </html	>
